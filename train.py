@@ -153,7 +153,7 @@ def model_training(args):
 
     # set up optimizer
     optimizer = optim.AdamW(list(encoder.parameters()) + list(decoder.parameters()), lr=args.learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
 
     # training parameters
     train_epochs = args.train_epochs
@@ -208,9 +208,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_neighbors', type=int, help='number of neighbor agents to predict', default=10)
     parser.add_argument('--num_candidates', type=int, help='number of max candidate trajectories', default=30)
     parser.add_argument('--variable_weights', type=bool, help='use variable cost weights', default=False)
-    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=30)
+    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=300)
     parser.add_argument('--batch_size', type=int, help='batch size', default=16)
-    parser.add_argument('--learning_rate', type=float, help='learning rate', default=2e-4)
+    parser.add_argument('--learning_rate', type=float, help='learning rate', default=4e-4) # 5e-4, 10, 0.8
     parser.add_argument('--device', type=str, help='run on which device', default='cuda')
     args = parser.parse_args()
 

@@ -1,0 +1,1 @@
+add vegas1 2 and modify cost 5 * obs + 2 * (3 - lane_change) + 0.01 * cur

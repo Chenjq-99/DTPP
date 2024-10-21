@@ -562,6 +562,7 @@ def generate_paths(paths, obstacles, ego_state):
 
     # sort paths by cost
     candidate_paths = []
+    # 只是选了三条？
     for cost in sorted(candiate_paths.keys())[:3]:
         path = candiate_paths[cost]
         path = post_process(path, ego_state)
@@ -578,10 +579,11 @@ def calculate_cost(path, dist, obstacles):
     lane_change = dist
 
     # check obstacles
-    obstacles = check_obstacles(path[0:100:10], obstacles)
+    obstacles = check_obstacles(path[0:100:10], obstacles) # 0 or 1
         
     # final cost
-    cost = 10 * obstacles + 1 * lane_change  + 0.1 * curvature
+    #Todo(Jacky) try to adjust the weight of each term to encourage lane change
+    cost = 10 * obstacles + 1 * lane_change  + 0.1 * curvature 
 
     return cost
 

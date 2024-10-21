@@ -35,6 +35,8 @@ from nuplan.planning.simulation.simulation_setup import SimulationSetup
 from nuplan.planning.nuboard.nuboard import NuBoard
 from nuplan.planning.nuboard.base.data_class import NuBoardFile
 
+from common_utils import get_filter_parameters, get_scenario_map, get_filter_parameters_for_changing_lane
+
 
 def build_simulation_experiment_folder(output_dir, simulation_dir, metric_dir, aggregator_metric_dir):
     """
@@ -162,7 +164,6 @@ def build_nuboard(scenario_builder, simulation_path):
 
     nuboard.run()
 
-
 def main(args):
     # parameters
     experiment_name = args.test_type  # [open_loop_boxes, closed_loop_nonreactive_agents, closed_loop_reactive_agents]
@@ -200,11 +201,12 @@ def main(args):
     map_version = "nuplan-maps-v1.0"
     scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=0.5)
     builder = NuPlanScenarioBuilder(args.data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
-    if args.load_test_set:
-        params = yaml.safe_load(open('test_scenario.yaml', 'r'))
-        scenario_filter = ScenarioFilter(**params)
-    else:
-        scenario_filter = ScenarioFilter(*get_filter_parameters(args.scenarios_per_type))
+    scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=50)) # only changing lane scenarios
+    # if args.load_test_set:
+    #     params = yaml.safe_load(open('test_scenario.yaml', 'r'))
+    #     scenario_filter = ScenarioFilter(**params)
+    # else:
+    #     scenario_filter = ScenarioFilter(*get_filter_parameters(args.scenarios_per_type))
     worker = SingleMachineParallelExecutor(use_process_pool=False)
     scenarios = builder.get_scenarios(scenario_filter, worker)
 
@@ -220,11 +222,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str)
-    parser.add_argument('--map_path', type=str)
-    parser.add_argument('--model_path', type=str)
+    parser.add_argument('--data_path', type=str, default='~/nuplan/dataset/nuplan-v1.1/splits/train')
+    parser.add_argument('--map_path', type=str, default='~/nuplan/dataset/maps')
+    parser.add_argument('--model_path', type=str, default='~/Project/DTPP/base_model.pth')
     parser.add_argument('--test_type', type=str, default='closed_loop_nonreactive_agents')
-    parser.add_argument('--load_test_set', action='store_true')
+    parser.add_argument('--load_test_set', action='store_true', default=False)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--scenarios_per_type', type=int, default=20)
     args = parser.parse_args()

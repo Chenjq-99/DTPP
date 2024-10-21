@@ -212,6 +212,34 @@ def get_scenario_map():
 
     return scenario_map
 
+def get_filter_parameters_for_changing_lane(num_scenarios_per_type=None, limit_total_scenarios=None):
+    scenario_types = [
+        'changing_lane',
+        'changing_lane_to_left',
+        'changing_lane_to_right',
+        'changing_lane_with_lead',
+        'changing_lane_with_trail',
+    ]
+
+    scenario_tokens = None              # List of scenario tokens to include
+    log_names = None                     # Filter scenarios by log names
+    map_names = None                     # Filter scenarios by map names
+    
+    num_scenarios_per_type = num_scenarios_per_type    # Number of scenarios per type
+    limit_total_scenarios = limit_total_scenarios       # Limit total scenarios (float = fraction, int = num) - this filter can be applied on top of num_scenarios_per_type
+    timestamp_threshold_s = None          # Filter scenarios to ensure scenarios have more than `timestamp_threshold_s` seconds between their initial lidar timestamps
+    ego_displacement_minimum_m = None    # Whether to remove scenarios where the ego moves less than a certain amount
+
+    expand_scenarios = False           # Whether to expand multi-sample scenarios to multiple single-sample scenarios
+    remove_invalid_goals = True         # Whether to remove scenarios where the mission goal is invalid
+    shuffle = False                      # Whether to shuffle the scenarios
+
+    ego_start_speed_threshold = None     # Limit to scenarios where the ego reaches a certain speed from below
+    ego_stop_speed_threshold = None      # Limit to scenarios where the ego reaches a certain speed from above
+    speed_noise_tolerance = None         # Value at or below which a speed change between two timepoints should be ignored as noise.
+
+    return scenario_types, scenario_tokens, log_names, map_names, num_scenarios_per_type, limit_total_scenarios, timestamp_threshold_s, ego_displacement_minimum_m, \
+              expand_scenarios, remove_invalid_goals, shuffle, ego_start_speed_threshold, ego_stop_speed_threshold, speed_noise_tolerance
 
 def get_filter_parameters(num_scenarios_per_type=None, limit_total_scenarios=None):
     scenario_types = [

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from data_utils import *
 from trajectory_tree_planner import *
-from common_utils import get_filter_parameters, get_scenario_map
+from common_utils import get_filter_parameters, get_scenario_map, get_filter_parameters_for_changing_lane
 
 from nuplan.planning.utils.multithreading.worker_pool import Task
 from nuplan.planning.utils.multithreading.worker_parallel import SingleMachineParallelExecutor
@@ -80,7 +80,8 @@ class DataProcessor(object):
 
         vector_map = map_process(ego_state.rear_axle, coords, traffic_light_data, self._map_features, 
                                  self._max_elements, self._max_points, self._interpolation_method)
-
+        # vector_map: [lanes, crosswalks, route_lanes]
+        # lanes: [N, P, F], N: number of lanes, P: point of lane, F: features of point(7, x, y, heading, tl, 0, 0, 0)
         return vector_map
 
     def get_ego_agent_future(self):
@@ -128,7 +129,7 @@ class DataProcessor(object):
             block = self.map_api.get_map_object(id_, SemanticMapLayer.ROADBLOCK)
             block = block or self.map_api.get_map_object(id_, SemanticMapLayer.ROADBLOCK_CONNECTOR)
             route_roadblocks.append(block)
-
+        # route roadblocks 中所有车道中心线的id
         candidate_lane_edge_ids = [edge.id for block in route_roadblocks if block for edge in block.interior_edges]
 
         # Get obstacles
@@ -163,9 +164,28 @@ class DataProcessor(object):
                 break
 
         # Get starting edges
+        # 开始roadblock的所有车道中心线
         edges = get_candidate_edges(ego_state, starting_block)
+        # 候选path, 每个path可能包含多段lane, 提取出所有离散点
         candidate_paths = get_candidate_paths(edges, ego_state, candidate_lane_edge_ids)
+
+        # # save candidate paths to file
+        # with open("candidate_path.txt", "w") as f:
+        #     for path in candidate_paths:
+        #         post_path = post_process(path[2], ego_state)
+        #         for p in post_path:
+        #             f.write(f"{p[0]} {p[1]}\n")
+        #         f.write("\n")
+
         paths = generate_paths(candidate_paths, obstacles, ego_state)
+
+        # save path to file
+        # with open("path.txt", "w") as f:
+        #     for path in paths:
+        #         for p in path:
+        #             f.write(f"{p[0]} {p[1]}\n")
+        #         f.write("\n")   
+
         speed_limit = edges[0].speed_limit_mps or self.max_target_speed
 
         # Initial tree (root node)
@@ -187,6 +207,9 @@ class DataProcessor(object):
         leaves = TrajTree.get_children(leaves)
         second_trajs = np.stack([leaf.total_traj[1:].numpy() for leaf in leaves]).astype(np.float32)
         
+        # ax = tree.plot_tree() # Todo(Jacky) plot the tree
+        # plt.show()
+
         return first_trajs, second_trajs
 
     def plot_scenario(self, data):
@@ -221,7 +244,9 @@ class DataProcessor(object):
             print(scenario)
 
             # get agent past tracks
+            # ego_agent_past [x, y, heading, vx, vy, ax, ay]
             ego_agent_past, time_stamps_past = self.get_ego_agent()
+            # neighbor_agents_past [track_token_int, vx, vy, heading, width, length, x, y]
             neighbor_agents_past, neighbor_agents_types = self.get_neighbor_agents()
             ego_agent_past, neighbor_agents_past, neighbor_indices = \
                     agent_past_process(ego_agent_past, time_stamps_past, neighbor_agents_past, neighbor_agents_types, self.num_agents)
@@ -277,11 +302,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     os.makedirs(args.save_path, exist_ok=True)
 
+    print("Start processing data...")
+    
     map_version = "nuplan-maps-v1.0"
     scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=0.5)
     builder = NuPlanScenarioBuilder(args.data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
-    scenario_filter = ScenarioFilter(*get_filter_parameters(num_scenarios_per_type=30000, 
-                                                            limit_total_scenarios=args.total_scenarios))
+    scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=30000, 
+                                                                                limit_total_scenarios=args.total_scenarios))
     worker = SingleMachineParallelExecutor(use_process_pool=True)
     scenarios = builder.get_scenarios(scenario_filter, worker)
     print(f"Total number of training scenarios: {len(scenarios)}")
