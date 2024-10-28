@@ -12,11 +12,9 @@ data = np.load(parser.parse_args().filename)
 arrays = data.files
 print("Arrays in the file:", arrays)
 
-# 访问特定的数组
-array_name = arrays[2]  # 假设你想要访问第一个数组
-array_data = data[array_name]
-print(len(array_data))
-print(f"Data in {array_name}:\n", array_data)
-
-# 记得关闭文件
+for array in arrays:
+    print(f"Array: {array}")
+    print(data[array].shape)
+    print(data[array])
+    print("\n")
 data.close()

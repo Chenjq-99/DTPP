@@ -20,9 +20,10 @@ class Planner(AbstractPlanner):
         self._N_points = int(T/DT)
         self._model_path = model_path
         self._device = device
+        self._last_lc_dir = None
 
     def name(self) -> str:
-        return "DTPP Planner"
+        return "DL Planner"
     
     def observation_type(self):
         return DetectionsTracks
@@ -41,7 +42,7 @@ class Planner(AbstractPlanner):
         self._encoder.load_state_dict(model['encoder'])
         self._encoder.to(self._device)
         self._encoder.eval()
-        self._decoder = Decoder()
+        self._decoder = Decoder(max_branch=50)
         self._decoder.load_state_dict(model['decoder'])
         self._decoder.to(self._device)
         self._decoder.eval()
@@ -95,7 +96,7 @@ class Planner(AbstractPlanner):
         # Tree policy planner
         try:
             plan = self._trajectory_planner.plan(iteration, ego_state, features, starting_block, self._route_roadblocks, 
-                                             self._candidate_lane_edge_ids, traffic_light_lanes, observation)
+                                             self._candidate_lane_edge_ids, traffic_light_lanes, observation, self._last_lc_dir)
         except Exception as e:
             print("Error in planning")
             print(e)
@@ -106,4 +107,43 @@ class Planner(AbstractPlanner):
         trajectory = InterpolatedTrajectory(states)
         print(f'Step {iteration+1} Planning time: {time.perf_counter() - start_time:.3f} s')
 
+        # Todo(Jacky): Update last lane change direction
+        # self._last_lc_dir = self.get_lc_dir_by_plan(plan)
+
         return trajectory
+    
+    def get_lc_dir_by_plan(self, plan):
+        """
+        根据轨迹点判断变道方向，考虑转弯情况。
+        参数：
+            trajectory (numpy.ndarray): 形状为 (N, 3) 的数组，每行包含 [x, y, heading]
+        返回：
+            int: -1 (向左变道), 0 (未变道或转弯), 1(向右变道）
+        """
+        # 提取 y 坐标和航向角（heading）
+        y_coords = plan[:, 1]
+        headings = plan[:, 2]
+
+        # 计算总的横向位移变化量
+        total_lateral_displacement = y_coords[-1] - y_coords[0]
+
+        # 计算航向角总变化量（将角度规范化到 -π 到 π 之间）
+        heading_changes = np.unwrap(headings)
+        total_heading_change = heading_changes[-1] - heading_changes[0]
+        total_heading_change_degrees = np.degrees(total_heading_change)
+
+        # 设定阈值
+        lane_width = 3.5  # 假设车道宽度为 3.5 米
+        displacement_threshold = lane_width / 2  # 横向位移阈值
+        heading_change_threshold = 10  # 航向角变化阈值，单位：度
+
+        if abs(total_heading_change_degrees) > heading_change_threshold:
+            # 认为车辆在转弯，暂不根据横向位移判断变道
+            return 0  # 未变道或无法判断
+        else:
+            if total_lateral_displacement < -displacement_threshold:
+                return -1  # 向左变道
+            elif total_lateral_displacement > displacement_threshold:
+                return 1   # 向右变道
+            else:
+                return 0   # 未变道

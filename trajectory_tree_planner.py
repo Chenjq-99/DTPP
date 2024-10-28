@@ -137,7 +137,7 @@ class TrajTree:
 
 
 class TreePlanner:
-    def __init__(self, device, encoder, decoder, n_candidates_expand=5, n_candidates_max=30):
+    def __init__(self, device, encoder, decoder, n_candidates_expand=5, n_candidates_max=50):
         self.encoder = encoder
         self.decoder = decoder
         self.device = device
@@ -198,7 +198,7 @@ class TreePlanner:
 
         return edges
 
-    def generate_paths(self, routes):
+    def generate_paths(self, routes, last_lc_dir=None):
         ego_state = self.ego_state.rear_axle.x, self.ego_state.rear_axle.y, self.ego_state.rear_axle.heading
         
         # generate paths
@@ -229,16 +229,57 @@ class TreePlanner:
         candiate_paths = {}
         for path, dist in zip(new_paths, path_distance):
             cost = self.calculate_cost(path, dist)
+            path = self.post_process(path)
+            if last_lc_dir is not None:
+                # Todo(Jacky) penalize diff lc dir between two frames
+                lc_dir = self.get_lc_dir_by_path(path)
+                cost += abs(lc_dir - last_lc_dir) 
             candiate_paths[cost] = path
 
         # sort paths by cost
         candidate_paths = []
-        for cost in sorted(candiate_paths.keys())[:3]:
+        num_paths = min(9, len(candiate_paths))
+        for cost in sorted(candiate_paths.keys())[:num_paths]:
             path = candiate_paths[cost]
-            path = self.post_process(path)
             candidate_paths.append(path)
 
         return candidate_paths
+    
+    def get_lc_dir_by_path(self, path):
+        """
+        根据轨迹点判断变道方向，考虑转弯情况。
+        参数：
+            trajectory (numpy.ndarray): 形状为 (N, 3) 的数组，每行包含 [x, y, heading]
+        返回：
+            int: -1 (向左变道), 0 (未变道或转弯), 1(向右变道）
+        """
+        # 提取 y 坐标和航向角（heading）
+        y_coords = path[:, 1]
+        headings = path[:, 2]
+
+        # 计算总的横向位移变化量
+        total_lateral_displacement = y_coords[-1] - y_coords[0]
+
+        # 计算航向角总变化量（将角度规范化到 -π 到 π 之间）
+        heading_changes = np.unwrap(headings)
+        total_heading_change = heading_changes[-1] - heading_changes[0]
+        total_heading_change_degrees = np.degrees(total_heading_change)
+
+        # 设定阈值
+        lane_width = 3.5  # 假设车道宽度为 3.5 米
+        displacement_threshold = lane_width / 2  # 横向位移阈值
+        heading_change_threshold = 10  # 航向角变化阈值，单位：度
+
+        if abs(total_heading_change_degrees) > heading_change_threshold:
+            # 认为车辆在转弯，暂不根据横向位移判断变道
+            return 0  # 未变道或无法判断
+        else:
+            if total_lateral_displacement < -displacement_threshold:
+                return -1  # 向左变道
+            elif total_lateral_displacement > displacement_threshold:
+                return 1   # 向右变道
+            else:
+                return 0   # 未变道
     
     def calculate_cost(self, path, dist):
         # path curvature
@@ -252,7 +293,8 @@ class TreePlanner:
         obstacles = self.check_obstacles(path[0:100:10], self.obstacles)
         
         # final cost
-        cost = 10 * obstacles + 1 * lane_change  + 0.1 * curvature
+        # cost = 10 * obstacles + 1 * lane_change  + 0.1 * curvature
+        cost = 10 * obstacles + 0.1 * curvature
 
         return cost
 
@@ -315,6 +357,8 @@ class TreePlanner:
     def predict(self, encoder_outputs, traj_inputs, agent_states, timesteps):
         ego_trajs = torch.zeros((self.n_candidates_max, self.horizon*10, 6)).to(self.device)
         for i, traj in enumerate(traj_inputs):
+            if i >= self.n_candidates_max:
+                break
             ego_trajs[i, :len(traj)] = traj[..., :6].float()
 
         ego_trajs = ego_trajs.unsqueeze(0)
@@ -331,7 +375,9 @@ class TreePlanner:
 
         return path
 
-    def plan(self, iteration, ego_state, env_inputs, starting_block, route_roadblocks, candidate_lane_edge_ids, traffic_light, observation, debug=False):
+    def plan(self, iteration, ego_state, env_inputs, starting_block,
+             route_roadblocks, candidate_lane_edge_ids, traffic_light, 
+             observation, debug=False, last_lc_dir=None):
         # get environment information
         self.ego_state = ego_state
         self.candidate_lane_edge_ids = candidate_lane_edge_ids
@@ -363,7 +409,7 @@ class TreePlanner:
         # get candidate map lanes
         edges = self.get_candidate_edges(starting_block)
         candidate_paths = self.get_candidate_paths(edges)
-        paths = self.generate_paths(candidate_paths)
+        paths = self.generate_paths(candidate_paths, last_lc_dir)
         self.speed_limit = edges[0].speed_limit_mps or self.target_speed
         
         # expand tree

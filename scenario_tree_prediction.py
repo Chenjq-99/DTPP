@@ -19,28 +19,28 @@ class Encoder(nn.Module):
 
     def forward(self, inputs):
         # agents
-        ego = inputs['ego_agent_past']
-        neighbors = inputs['neighbor_agents_past']
-        actors = torch.cat([ego[:, None, :, :5], neighbors[..., :5]], dim=1)
+        ego = inputs['ego_agent_past'] # [B, N, 7]
+        neighbors = inputs['neighbor_agents_past'] # [B, M, N, 11]
+        actors = torch.cat([ego[:, None, :, :5], neighbors[..., :5]], dim=1) # [B, M+1, N, 5] x, y, heading, vx, vy
 
         # agent encoding
-        encoded_ego = self.ego_encoder(ego)
-        encoded_neighbors = [self.agent_encoder(neighbors[:, i]) for i in range(neighbors.shape[1])]
-        encoded_actors = torch.stack([encoded_ego] + encoded_neighbors, dim=1)
-        actors_mask = torch.eq(actors[:, :, -1].sum(-1), 0)
+        encoded_ego = self.ego_encoder(ego) # [B, 256]
+        encoded_neighbors = [self.agent_encoder(neighbors[:, i]) for i in range(neighbors.shape[1])] # [B, M, 256]
+        encoded_actors = torch.stack([encoded_ego] + encoded_neighbors, dim=1) # [B, M+1, 256]
+        actors_mask = torch.eq(actors[:, :, -1].sum(-1), 0) # [B, M+1]
 
         # vector maps
-        map_lanes = inputs['map_lanes']
+        map_lanes = inputs['map_lanes'] # [B, N_e, N_p, 7]
         map_crosswalks = inputs['map_crosswalks']
 
         # map encoding
-        encoded_map_lanes, lanes_mask = self.lane_encoder(map_lanes)
+        encoded_map_lanes, lanes_mask = self.lane_encoder(map_lanes) # [B, N_e * N_p//10, 256], [B, N_e * N_p//10]
         encoded_map_crosswalks, crosswalks_mask = self.crosswalk_encoder(map_crosswalks)
 
         # attention fusion encoding
-        input = torch.cat([encoded_actors, encoded_map_lanes, encoded_map_crosswalks], dim=1)
-        mask = torch.cat([actors_mask, lanes_mask, crosswalks_mask], dim=1)
-        encoding = self.fusion_encoder(input, src_key_padding_mask=mask)
+        input = torch.cat([encoded_actors, encoded_map_lanes, encoded_map_crosswalks], dim=1) # [B, M + 1 + (N_e * N_p//10) + (N_e * N_p//10), 256]
+        mask = torch.cat([actors_mask, lanes_mask, crosswalks_mask], dim=1) # [B, M + 1 + (N_e * N_p//10) + (N_e * N_p//10), 256]
+        encoding = self.fusion_encoder(input, src_key_padding_mask=mask) # [B, M + 1 + (N_e * N_p//10) + (N_e * N_p//10), 256]
 
         # outputs
         encoder_outputs = {'encoding': encoding, 'mask': mask}
@@ -84,11 +84,18 @@ class Decoder(nn.Module):
     def forward(self, encoder_outputs, ego_traj_inputs, agents_states, timesteps):
         # get inputs
         current_states = agents_states[:, :self._neighbors, -1]
+        # M : agent num, 1: ego agent, N_e: lane num, N_p: point num 
+        # encoding [B, M + 1 + (N_e * N_p//10) + (N_e * N_p//10), 256]
         encoding, encoding_mask = encoder_outputs['encoding'], encoder_outputs['mask']
+        # N: branch num, T: time step
+        # [B, N, T, 256]
         ego_traj_ori_encoding = self.ego_traj_encoder(ego_traj_inputs)
+        # [B, N, 256]
         branch_embedding = ego_traj_ori_encoding[:, :, timesteps-1]
+        # [B, N, T//10, 256] 10 times downsample
         ego_traj_ori_encoding = self.pooling_trajectory(ego_traj_ori_encoding)
         time_embedding = self.time_embed(self.time_index)
+        # [B, N, T//10, 256]
         tree_embedding = time_embedding[None, :, :, :] + branch_embedding[:, :, None, :]
 
         # get mask
@@ -106,6 +113,7 @@ class Decoder(nn.Module):
         agents_trajecotries = []
         for i in range(self._neighbors):
             # learnable query
+            # [B, 1, 1, 256]
             query = encoding[:, i+1, None, None] + tree_embedding
             query = torch.reshape(query, (query.shape[0], -1, query.shape[-1]))
       

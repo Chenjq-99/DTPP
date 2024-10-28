@@ -44,8 +44,8 @@ class VectorMapEncoder(nn.Module):
     def segment_map(self, map, map_encoding):
         B, N_e, N_p, D = map_encoding.shape 
         map_encoding = F.max_pool2d(map_encoding.permute(0, 3, 1, 2), kernel_size=(1, 10))
-        map_encoding = map_encoding.permute(0, 2, 3, 1).reshape(B, -1, D)
-
+        map_encoding = map_encoding.permute(0, 2, 3, 1).reshape(B, -1, D) # B, N_e * N_p//10, D
+        # map [B, N_e, N_p, 7]
         map_mask = torch.eq(map, 0)[:, :, :, 0].reshape(B, N_e, N_p//10, N_p//(N_p//10))
         map_mask = torch.max(map_mask, dim=-1)[0].reshape(B, -1)
 

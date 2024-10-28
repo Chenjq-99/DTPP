@@ -530,7 +530,7 @@ def get_candidate_paths(edges, ego_state, candidate_lane_edge_ids):
     return paths
 
 
-def generate_paths(paths, obstacles, ego_state):
+def generate_paths(paths, obstacles, ego_state, gt_lc_dir=0):
     new_paths = []
     path_distance = []
     for (path_len, dist, path_polyline) in paths:
@@ -558,17 +558,58 @@ def generate_paths(paths, obstacles, ego_state):
     candiate_paths = {}
     for path, dist in zip(new_paths, path_distance):
         cost = calculate_cost(path, dist, obstacles)
+        path = post_process(path, ego_state)
+        lc_dir = get_lane_change_direction(path)
+        cost += 5 * abs(lc_dir - gt_lc_dir) # navigation information
         candiate_paths[cost] = path
 
     # sort paths by cost
     candidate_paths = []
-    # 只是选了三条？
-    for cost in sorted(candiate_paths.keys())[:3]:
+    # 只是选了三条, 简单的按照cost排序，是否会同质化严重，
+    # 应该加入导航信息(专家轨迹)， 同时增加path数量
+    num_paths = min(9, len(candiate_paths))
+    for cost in sorted(candiate_paths.keys())[:num_paths]:
         path = candiate_paths[cost]
-        path = post_process(path, ego_state)
+        # path = post_process(path, ego_state) # in line 565
         candidate_paths.append(path)
 
     return candidate_paths
+
+def get_lane_change_direction(trajectory):
+    """
+    根据轨迹点判断变道方向，考虑转弯情况。
+    参数：
+        trajectory (numpy.ndarray): 形状为 (N, 3) 的数组，每行包含 [x, y, heading]
+    返回：
+        int: -1 (向左变道), 0 (未变道或转弯), 1(向右变道）
+    """
+    # 提取 y 坐标和航向角（heading）
+    y_coords = trajectory[:, 1]
+    headings = trajectory[:, 2]
+
+    # 计算总的横向位移变化量
+    total_lateral_displacement = y_coords[-1] - y_coords[0]
+
+    # 计算航向角总变化量（将角度规范化到 -π 到 π 之间）
+    heading_changes = np.unwrap(headings)
+    total_heading_change = heading_changes[-1] - heading_changes[0]
+    total_heading_change_degrees = np.degrees(total_heading_change)
+
+    # 设定阈值
+    lane_width = 3.5  # 假设车道宽度为 3.5 米
+    displacement_threshold = lane_width / 2  # 横向位移阈值
+    heading_change_threshold = 10  # 航向角变化阈值，单位：度
+
+    if abs(total_heading_change_degrees) > heading_change_threshold:
+        # 认为车辆在转弯，暂不根据横向位移判断变道
+        return 0  # 未变道或无法判断
+    else:
+        if total_lateral_displacement < -displacement_threshold:
+            return -1  # 向左变道
+        elif total_lateral_displacement > displacement_threshold:
+            return 1   # 向右变道
+        else:
+            return 0   # 未变道
     
 def calculate_cost(path, dist, obstacles):
     # path curvature
@@ -583,7 +624,8 @@ def calculate_cost(path, dist, obstacles):
         
     # final cost
     #Todo(Jacky) try to adjust the weight of each term to encourage lane change
-    cost = 10 * obstacles + 1 * lane_change  + 0.1 * curvature 
+    # cost = 10 * obstacles + 1 * lane_change + 0.1 * curvature 
+    cost = 10 * obstacles + 0.1 * curvature
 
     return cost
 
@@ -683,7 +725,7 @@ def create_ego_raster(vehicle_state):
     ego_bottom_right = (x_center - ego_rear_length, y_center - ego_width/2)
 
     # Paint the rectangle
-    rect = plt.Rectangle(ego_bottom_right, ego_front_length+ego_rear_length, ego_width, linewidth=2, color='r', alpha=0.6, zorder=3,
+    rect = plt.Rectangle(ego_bottom_right, ego_front_length+ego_rear_length, ego_width, linewidth=2, color='red', alpha=0.6, zorder=3,
                         transform=mpl.transforms.Affine2D().rotate_around(*(x_center, y_center), heading) + plt.gca().transData)
     plt.gca().add_patch(rect)
 
@@ -695,7 +737,7 @@ def create_agents_raster(agents):
             agent_length, agent_width = agents[i, 6],  agents[i, 7]
             agent_bottom_right = (x_center - agent_length/2, y_center - agent_width/2)
 
-            rect = plt.Rectangle(agent_bottom_right, agent_length, agent_width, linewidth=2, color='m', alpha=0.6, zorder=3,
+            rect = plt.Rectangle(agent_bottom_right, agent_length, agent_width, linewidth=2, color='magenta', alpha=0.6, zorder=3,
                                 transform=mpl.transforms.Affine2D().rotate_around(*(x_center, y_center), heading) + plt.gca().transData)
             plt.gca().add_patch(rect)
 
@@ -704,7 +746,7 @@ def create_map_raster(lanes, crosswalks, route_lanes):
     for i in range(lanes.shape[0]):
         lane = lanes[i]
         if lane[0][0] != 0:
-            plt.plot(lane[:, 0], lane[:, 1], 'k', linewidth=3) # plot centerline
+            plt.plot(lane[:, 0], lane[:, 1], linestyle='--', color='black', linewidth=1) # plot centerline
 
     for j in range(crosswalks.shape[0]):
         crosswalk = crosswalks[j]
@@ -714,7 +756,7 @@ def create_map_raster(lanes, crosswalks, route_lanes):
     for k in range(route_lanes.shape[0]):
         route_lane = route_lanes[k]
         if route_lane[0][0] != 0:
-            plt.plot(route_lane[:, 0], route_lane[:, 1], 'g', linewidth=4) # plot route_lanes
+            plt.plot(route_lane[:, 0], route_lane[:, 1], color='green', linewidth=1) # plot route_lanes
 
 
 def draw_trajectory(ego_trajectory, agent_trajectories):
@@ -729,7 +771,7 @@ def draw_trajectory(ego_trajectory, agent_trajectories):
 
 
 def draw_plans(trajectory_plans, stage=1):
-    f = 'y--' if stage == 1 else 'c--'
+    f = 'y-' if stage == 1 else 'c-'
  
     for i in range(trajectory_plans.shape[0]):
         trajectory = trajectory_plans[i]

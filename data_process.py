@@ -116,7 +116,7 @@ class DataProcessor(object):
 
         return agent_futures
     
-    def get_ego_candidate_trajectories(self):
+    def get_ego_candidate_trajectories(self, ego_feature_path=None):
         planner = SplinePlanner(self.first_stage_horizon, self.future_time_horizon)
 
         # Gather information about the environment
@@ -176,8 +176,17 @@ class DataProcessor(object):
         #         for p in post_path:
         #             f.write(f"{p[0]} {p[1]}\n")
         #         f.write("\n")
+        if not ego_feature_path is None:
+            gt_lc_dir = get_lane_change_direction(ego_feature_path)
+        else:
+            gt_lc_dir = 0
+        paths = generate_paths(candidate_paths, obstacles, ego_state, gt_lc_dir)
 
-        paths = generate_paths(candidate_paths, obstacles, ego_state)
+        # # Todo(Jacky) plot path
+        # colors = ['grey', 'salmon', 'gold', 'violet', 'orange', 'brown']
+        # for i, path in enumerate(paths):
+        #     plt.plot(path[:,0], path[:,1], linestyle=':', color=colors[i%6], linewidth=1)
+
 
         # save path to file
         # with open("path.txt", "w") as f:
@@ -212,30 +221,33 @@ class DataProcessor(object):
 
         return first_trajs, second_trajs
 
-    def plot_scenario(self, data):
+    def plot_scenario(self, data, cnt=0):
         # Create map layers
-        create_map_raster(data['lanes'], data['crosswalks'], data['route_lanes'])
+        # create_map_raster(data['map_lanes'], data['map_crosswalks'], data['route_lanes'])
 
-        # Create agent layers
-        create_ego_raster(data['ego_agent_past'][-1])
-        create_agents_raster(data['neighbor_agents_past'][:, -1])
+        # # Create agent layers
+        # create_ego_raster(data['ego_agent_past'][-1])
+        # create_agents_raster(data['neighbor_agents_past'][:, -1])
 
         # Draw past and future trajectories
-        draw_trajectory(data['ego_agent_past'], data['neighbor_agents_past'][:1])
-        draw_trajectory(data['ego_agent_future'], data['neighbor_agents_future'][:1])
+        # draw_trajectory(data['ego_agent_past'], data['neighbor_agents_past'][:1])
+        # draw_trajectory(data['ego_agent_future'], data['neighbor_agents_future'][:1])
 
         # Draw candidate trajectories
-        draw_plans(data['first_stage_ego_trajectory'], 1)
-        draw_plans(data['second_stage_ego_trajectory'], 2)
+        # draw_plans(data['first_stage_ego_trajectory'], 1)
+        # draw_plans(data['second_stage_ego_trajectory'], 2)
 
         plt.gca().set_aspect('equal')
         plt.tight_layout()
-        plt.show()
+        plt.savefig(f'scenario_plot_{cnt}.png', dpi=600)
+        plt.clf()
+        # plt.show()
 
     def save_to_disk(self, dir, data):
         np.savez(f"{dir}/{data['map_name']}_{data['token']}.npz", **data)
 
     def work(self, save_dir, debug=False):
+        scenario_cnt = 0
         for scenario in tqdm(self._scenarios):
             map_name = scenario._map_name
             token = scenario.token
@@ -260,7 +272,7 @@ class DataProcessor(object):
 
             # get candidate trajectories
             try:
-                first_stage_trajs, second_stage_trajs = self.get_ego_candidate_trajectories()
+                first_stage_trajs, second_stage_trajs = self.get_ego_candidate_trajectories(ego_feature_path=ego_agent_future)
             except:
                 print(f"Error in {map_name}_{token}")
                 continue
@@ -285,7 +297,9 @@ class DataProcessor(object):
 
             # visualization
             if debug:
-                self.plot_scenario(data)
+                self.plot_scenario(data, scenario_cnt)
+
+            scenario_cnt += 1
 
             # save to disk
             self.save_to_disk(save_dir, data)
@@ -305,7 +319,7 @@ if __name__ == "__main__":
     print("Start processing data...")
     
     map_version = "nuplan-maps-v1.0"
-    scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=0.5)
+    scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=1.0) # 0.5
     builder = NuPlanScenarioBuilder(args.data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
     scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=30000, 
                                                                                 limit_total_scenarios=args.total_scenarios))

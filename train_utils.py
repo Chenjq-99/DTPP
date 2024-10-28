@@ -59,7 +59,7 @@ class DrivingData(Dataset):
         return ego, neighbors, map_lanes, map_crosswalks, route_lanes, ego_future_gt, neighbors_future_gt, first_stage, second_stage
 
 
-def calc_loss(neighbors, ego, ego_regularization, scores, weights, ego_gt, neighbors_gt, neighbors_valid):
+def calc_loss(neighbors, ego, ego_regularization, scores, weights, ego_gt, neighbors_gt, neighbors_valid, is_first_stage=True):
     mask = torch.ne(ego.sum(-1), 0)
     neighbors = neighbors[:, 0] * neighbors_valid 
     cmp_loss = F.smooth_l1_loss(neighbors, neighbors_gt, reduction='none')
@@ -74,8 +74,12 @@ def calc_loss(neighbors, ego, ego_regularization, scores, weights, ego_gt, neigh
     irl_loss = F.cross_entropy(scores, label)
 
     weights_regularization = torch.square(weights).mean()
-
-    loss = cmp_loss + irl_loss + 0.1 * regularization_loss + 0.01 * weights_regularization
+    # Todo(Jacky) adjust loss weights
+    loss = cmp_loss + 5 * irl_loss + 0.1 * regularization_loss + 0.01 * weights_regularization
+    # if (is_first_stage):
+    #     loss = cmp_loss + 5 * irl_loss + 0.1 * regularization_loss + 0.01 * weights_regularization
+    # else:
+    #     loss = cmp_loss + 8 * irl_loss + 0.1 * regularization_loss + 0.01 * weights_regularization
 
     return loss
 

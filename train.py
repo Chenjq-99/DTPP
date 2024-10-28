@@ -34,21 +34,21 @@ def train_epoch(data_loader, encoder, decoder, optimizer):
 
             # encode
             optimizer.zero_grad()
-            encoder_outputs = encoder(inputs)
+            encoder_outputs = encoder(inputs) # [B, M + 1 + (N_e * N_p//10) + (N_e * N_p//10), 256]
 
             # first stage prediction
             first_stage_trajectory = batch[7].to(args.device)
             neighbors_trajectories, scores, ego, weights = \
                 decoder(encoder_outputs, first_stage_trajectory, inputs['neighbor_agents_past'], 30)
             loss = calc_loss(neighbors_trajectories, first_stage_trajectory, ego, scores, weights, \
-                             ego_gt_future, neighbors_gt_future, neighbors_future_valid)
+                             ego_gt_future, neighbors_gt_future, neighbors_future_valid, is_first_stage=True)
 
             # second stage prediction
             second_stage_trajectory = batch[8].to(args.device)
             neighbors_trajectories, scores, ego, weights = \
                 decoder(encoder_outputs, second_stage_trajectory, inputs['neighbor_agents_past'], 80)
             loss += 0.2 * calc_loss(neighbors_trajectories, second_stage_trajectory, ego, scores, weights, \
-                              ego_gt_future, neighbors_gt_future, neighbors_future_valid)
+                              ego_gt_future, neighbors_gt_future, neighbors_future_valid, is_first_stage=False)
 
             # loss backward
             loss.backward()
@@ -153,7 +153,7 @@ def model_training(args):
 
     # set up optimizer
     optimizer = optim.AdamW(list(encoder.parameters()) + list(decoder.parameters()), lr=args.learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.85)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.8)
 
     # training parameters
     train_epochs = args.train_epochs
@@ -171,7 +171,26 @@ def model_training(args):
         logging.info(f"Epoch {epoch+1}/{train_epochs}")
         train_loss, train_metrics = train_epoch(train_loader, encoder, decoder, optimizer)
         val_loss, val_metrics = valid_epoch(valid_loader, encoder, decoder)
+        
+        # TensorBoard visualization
+        from torch.utils.tensorboard import SummaryWriter
 
+        writer = SummaryWriter(log_dir=f'./training_log/{args.name}/tensorboard')
+
+        writer.add_scalar('Loss/train', train_loss, epoch)
+        writer.add_scalar('Loss/validation', val_loss, epoch)
+        writer.add_scalar('Learning Rate', optimizer.param_groups[0]['lr'], epoch)
+        writer.add_scalar('Metrics/train_planningADE', train_metrics[0], epoch)
+        writer.add_scalar('Metrics/train_planningFDE', train_metrics[1], epoch)
+        writer.add_scalar('Metrics/train_predictionADE', train_metrics[2], epoch)
+        writer.add_scalar('Metrics/train_predictionFDE', train_metrics[3], epoch)
+        writer.add_scalar('Metrics/val_planningADE', val_metrics[0], epoch)
+        writer.add_scalar('Metrics/val_planningFDE', val_metrics[1], epoch)
+        writer.add_scalar('Metrics/val_predictionADE', val_metrics[2], epoch)
+        writer.add_scalar('Metrics/val_predictionFDE', val_metrics[3], epoch)
+        
+        writer.flush()
+        
         # save to training log
         log = {'epoch': epoch+1, 'loss': train_loss, 'lr': optimizer.param_groups[0]['lr'], 'val-loss': val_loss, 
                'train-planningADE': train_metrics[0], 'train-planningFDE': train_metrics[1], 
@@ -206,9 +225,9 @@ if __name__ == "__main__":
     parser.add_argument('--train_set', type=str, help='path to training data')
     parser.add_argument('--valid_set', type=str, help='path to validation data')
     parser.add_argument('--num_neighbors', type=int, help='number of neighbor agents to predict', default=10)
-    parser.add_argument('--num_candidates', type=int, help='number of max candidate trajectories', default=30)
+    parser.add_argument('--num_candidates', type=int, help='number of max candidate trajectories', default=50)
     parser.add_argument('--variable_weights', type=bool, help='use variable cost weights', default=False)
-    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=300)
+    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=500)
     parser.add_argument('--batch_size', type=int, help='batch size', default=16)
     parser.add_argument('--learning_rate', type=float, help='learning rate', default=4e-4) # 5e-4, 10, 0.8
     parser.add_argument('--device', type=str, help='run on which device', default='cuda')

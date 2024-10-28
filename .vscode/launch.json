@@ -11,9 +11,12 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train",
+                // "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_2",
                 "--map_path", "~/nuplan/dataset/maps",
-                "--save_path", "~/nuplan/processed_data/train/chaning_lane_data_adjust_costs"
+                // "--save_path", "~/nuplan/processed_data/train/debug"
+                "--test_type", "closed_loop_reactive_agents",
+                "--model_path", "~/Project/DTPP/best_result/20241027/model_epoch_500_valADE_2.0704.pth"
+
             ]
         }
     ]
