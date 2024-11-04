@@ -101,6 +101,12 @@ def valid_epoch(data_loader, encoder, decoder):
 
                 # first stage prediction
                 first_stage_trajectory = batch[7].to(args.device)
+                """
+                neighbors_trajectories: [B, N, M, T, 3]
+                scores: [B, N]
+                ego: [B, 80, 3]
+                weights: [B, 8]
+                """
                 neighbors_trajectories, scores, ego, weights = \
                     decoder(encoder_outputs, first_stage_trajectory, inputs['neighbor_agents_past'], 30)
                 loss = calc_loss(neighbors_trajectories, first_stage_trajectory, ego, scores, weights, \
@@ -153,7 +159,7 @@ def model_training(args):
 
     # set up optimizer
     optimizer = optim.AdamW(list(encoder.parameters()) + list(decoder.parameters()), lr=args.learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.8)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.85)
 
     # training parameters
     train_epochs = args.train_epochs
@@ -213,8 +219,9 @@ def model_training(args):
 
         # save model at the end of epoch
         model = {'encoder': encoder.state_dict(), 'decoder': decoder.state_dict()}
-        torch.save(model, f'training_log/{args.name}/model_epoch_{epoch+1}_valADE_{val_metrics[0]:.4f}.pth')
-        logging.info(f"Model saved in training_log/{args.name}\n")
+        if epoch == train_epochs - 1:
+            torch.save(model, f'training_log/{args.name}/model_epoch_{epoch+1}_valADE_{val_metrics[0]:.4f}.pth')
+            logging.info(f"Model saved in training_log/{args.name}\n")
 
 
 if __name__ == "__main__":
@@ -227,9 +234,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_neighbors', type=int, help='number of neighbor agents to predict', default=10)
     parser.add_argument('--num_candidates', type=int, help='number of max candidate trajectories', default=50)
     parser.add_argument('--variable_weights', type=bool, help='use variable cost weights', default=False)
-    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=500)
-    parser.add_argument('--batch_size', type=int, help='batch size', default=16)
-    parser.add_argument('--learning_rate', type=float, help='learning rate', default=4e-4) # 5e-4, 10, 0.8
+    parser.add_argument('--train_epochs', type=int, help='epochs of training', default=1000)
+    parser.add_argument('--batch_size', type=int, help='batch size', default=8)
+    parser.add_argument('--learning_rate', type=float, help='learning rate', default=1e-3) # 5e-4, 10, 0.8
     parser.add_argument('--device', type=str, help='run on which device', default='cuda')
     args = parser.parse_args()
 

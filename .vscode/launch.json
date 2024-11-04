@@ -5,18 +5,48 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "data_process_idm",
             "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/data_process_idm.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train",
+                "--map_path", "~/nuplan/dataset/maps",
+                "--save_path", "~/nuplan/processed_data/train/debug",
+            ]
+        },
+        {
+            "name": "train_parameter_freezing",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_parameter_freezing.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--train_set",
+                "~/nuplan/processed_data/train/all_changing_lane_sample_9",
+                "--valid_set",
+                "~/nuplan/processed_data/train/all_changing_lane_sample_9",
+                "--model_path",
+                "~/Project/DTPP/best_result/20241029/model_epoch_300_valADE_2.1388.pth"
+            ]
+        },
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test.py",
             "console": "integratedTerminal",
             "args": [
                 // "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_2",
-                "--map_path", "~/nuplan/dataset/maps",
+                "--map_path",
+                "~/nuplan/dataset/maps",
                 // "--save_path", "~/nuplan/processed_data/train/debug"
-                "--test_type", "closed_loop_reactive_agents",
-                "--model_path", "~/Project/DTPP/best_result/20241027/model_epoch_500_valADE_2.0704.pth"
-
+                "--test_type",
+                "closed_loop_reactive_agents",
+                "--model_path",
+                "~/Project/DTPP/best_result/20241027/model_epoch_500_valADE_2.0704.pth"
             ]
         }
     ]

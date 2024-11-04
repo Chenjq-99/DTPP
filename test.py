@@ -200,22 +200,28 @@ def main(args):
     print('Extracting scenarios...')
     map_version = "nuplan-maps-v1.0"
     scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=0.5)
-    data_paths = ['~/nuplan/dataset/nuplan-v1.1/splits/train', 
-                 '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_1',
-                 '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_2',
-                 '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_3',
-                 '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_4']
-    scenarios = []
-    for data_path in data_paths:
-        builder = NuPlanScenarioBuilder(data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
-        scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=30)) # only changing lane scenarios
-        # if args.load_test_set:
-        #     params = yaml.safe_load(open('test_scenario.yaml', 'r'))
-        #     scenario_filter = ScenarioFilter(**params)
-        # else:
-        #     scenario_filter = ScenarioFilter(*get_filter_parameters(args.scenarios_per_type))
-        worker = SingleMachineParallelExecutor(use_process_pool=False)
-        scenarios += builder.get_scenarios(scenario_filter, worker)
+    
+    # data_paths = ['~/nuplan/dataset/nuplan-v1.1/splits/train', 
+    #              '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_1',
+    #              '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_2',
+    #              '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_3',
+    #              '~/nuplan/dataset/nuplan-v1.1/splits/train_vegas_4']
+    # scenarios = []
+    # for data_path in data_paths:
+    #     builder = NuPlanScenarioBuilder(data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
+    #     scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=30)) # only changing lane scenarios
+    #     # if args.load_test_set:
+    #     #     params = yaml.safe_load(open('test_scenario.yaml', 'r'))
+    #     #     scenario_filter = ScenarioFilter(**params)
+    #     # else:
+    #     #     scenario_filter = ScenarioFilter(*get_filter_parameters(args.scenarios_per_type))
+    #     worker = SingleMachineParallelExecutor(use_process_pool=False)
+    #     scenarios += builder.get_scenarios(scenario_filter, worker)
+
+    builder = NuPlanScenarioBuilder(args.data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
+    scenario_filter = ScenarioFilter(*get_filter_parameters_for_changing_lane(num_scenarios_per_type=40)) # only changing lane scenarios
+    worker = SingleMachineParallelExecutor(use_process_pool=False)
+    scenarios = builder.get_scenarios(scenario_filter, worker)
 
     # begin testing
     print('Running simulations...')

@@ -12,12 +12,13 @@ from nuplan.planning.utils.multithreading.worker_parallel import SingleMachinePa
 from nuplan.planning.scenario_builder.scenario_filter import ScenarioFilter
 from nuplan.planning.scenario_builder.nuplan_db.nuplan_scenario_builder import NuPlanScenarioBuilder
 from nuplan.planning.scenario_builder.nuplan_db.nuplan_scenario_utils import ScenarioMapping
-
+from nuplan.planning.scenario_builder.abstract_scenario import AbstractScenario
+from IDM_simulator import BayesianOptimizer
 
 # define data processor
 class DataProcessor(object):
     def __init__(self, scenarios):
-        self._scenarios = scenarios
+        self._scenarios: List[AbstractScenario] = scenarios
 
         self.past_time_horizon = 2 # [seconds]
         self.num_past_poses = 10 * self.past_time_horizon 
@@ -260,6 +261,7 @@ class DataProcessor(object):
             ego_agent_past, time_stamps_past = self.get_ego_agent()
             # neighbor_agents_past [track_token_int, vx, vy, heading, width, length, x, y]
             neighbor_agents_past, neighbor_agents_types = self.get_neighbor_agents()
+            #neighbor_agents_past [x, y, heading, vx, vy, yaw rate, length, width, _, _, _(one hot encoding[1, 0, 0] vehicle, [0, 1, 0] pedestrain, [0, 0, 1] bicycle)]
             ego_agent_past, neighbor_agents_past, neighbor_indices = \
                     agent_past_process(ego_agent_past, time_stamps_past, neighbor_agents_past, neighbor_agents_types, self.num_agents)
 

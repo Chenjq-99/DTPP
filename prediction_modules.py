@@ -139,7 +139,7 @@ class ScoreDecoder(nn.Module):
         return cost
     
     def get_latent_interaction_features(self, ego_traj, agent_traj, agents_states, max_time):
-        # ego_traj: B, T, 6
+        # ego_traj: B, T, 6  x, y, heading, velocity, acceleration, curvature
         # agent_traj: B, N, T, 3
         # agents_states: B, N, 11
 
@@ -147,48 +147,66 @@ class ScoreDecoder(nn.Module):
         agent_mask = torch.ne(agents_states.sum(-1), 0) # B, N
 
         # Get relative attributes of agents
+        # relative_yaw [B, N, T]
         relative_yaw = agent_traj[:, :, :max_time, 2] - ego_traj[:, None, :max_time, 2]
+        # from -pi to pi
         relative_yaw = torch.atan2(torch.sin(relative_yaw), torch.cos(relative_yaw))
+        # relative_pos [B, N, T, 2]
         relative_pos = agent_traj[:, :, :max_time, :2] - ego_traj[:, None, :max_time, :2]
+        # rotate the relative position to the ego's frame
         relative_pos = torch.stack([relative_pos[..., 0] * torch.cos(relative_yaw), 
                                     relative_pos[..., 1] * torch.sin(relative_yaw)], dim=-1)
+        # agent_velocity [B, N, T, 2]
         agent_velocity = torch.diff(agent_traj[:, :, :max_time, :2], dim=-2) / 0.1
         agent_velocity = torch.cat((agent_velocity[:, :, :1, :], agent_velocity), dim=-2)
+        # ego_velocity_x/y [B, T]
         ego_velocity_x = ego_traj[:, :max_time, 3] * torch.cos(ego_traj[:, :max_time, 2])
         ego_velocity_y = ego_traj[:, :max_time, 3] * torch.sin(ego_traj[:, :max_time, 2])
+        # relative_velocity [B, N, T, 2]
         relative_velocity = torch.stack([(agent_velocity[..., 0] - ego_velocity_x[:, None]) * torch.cos(relative_yaw),
                                          (agent_velocity[..., 1] - ego_velocity_y[:, None]) * torch.sin(relative_yaw)], dim=-1) 
+        # relative_attributes [B, N, T, 5] x, y, yaw, vx, vy
         relative_attributes = torch.cat((relative_pos, relative_yaw.unsqueeze(-1), relative_velocity), dim=-1)
 
         # Get agent attributes
+        # agent_attributes [B, N, T, 5]
         agent_attributes = agents_states[:, :, None, 6:].expand(-1, -1, relative_attributes.shape[2], -1)
+        # attributes [B, N, T, 10]
         attributes = torch.cat((relative_attributes, agent_attributes), dim=-1)
         attributes = attributes * agent_mask[:, :, None, None]
 
         # Encode relative attributes and decode to latent interaction features
+        # features [B, N, T, 256]
         features = self.interaction_feature_encoder(attributes)
         features = features.max(1).values.mean(1)
+        # features [B, 4]
         features = self.interaction_feature_decoder(features)
   
         return features
 
     def forward(self, ego_traj, ego_encoding, agents_traj, agents_states, timesteps):
+        # ego_traj_features [B, N, 4]
         ego_traj_features = self.get_hardcoded_features(ego_traj, timesteps)
         if not self._variable_cost:
             ego_encoding = torch.ones_like(ego_encoding)
+        # weights [B, 4 + 4]
         weights = self.weights_decoder(ego_encoding)
         ego_mask = torch.ne(ego_traj.sum(-1).sum(-1), 0)
 
         scores = []
+        # for branch
         for i in range(agents_traj.shape[1]):
-            hardcoded_features = ego_traj_features[:, i]
+            # hardcoded_features [B, 4]
+            hardcoded_features = ego_traj_features[:, i] 
+            # interaction_features [B, 4]
             interaction_features = self.get_latent_interaction_features(ego_traj[:, i], agents_traj[:, i], agents_states, timesteps)
+            # features [B, 8]
             features = torch.cat((hardcoded_features, interaction_features), dim=-1)
             score = -torch.sum(features * weights, dim=-1)
             collision_feature = self.calculate_collision(ego_traj[:, i], agents_traj[:, i], agents_states, timesteps)
             score += -10 * collision_feature
             scores.append(score)
-
+        # list[B,] => [B, N]
         scores = torch.stack(scores, dim=1)
         scores = torch.where(ego_mask, scores, float('-inf'))
 

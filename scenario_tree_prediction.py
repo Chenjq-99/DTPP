@@ -113,28 +113,39 @@ class Decoder(nn.Module):
         agents_trajecotries = []
         for i in range(self._neighbors):
             # learnable query
-            # [B, 1, 1, 256]
+            # [B, 1, 1, 256] + [B, N, T//10, 256] = [B, N, T//10, 256]
             query = encoding[:, i+1, None, None] + tree_embedding
+            # [B, N * T//10, 256]
             query = torch.reshape(query, (query.shape[0], -1, query.shape[-1]))
       
             # decode from environment inputs
+            # env_encoding: [B, N * T//10, 256]
             env_decoding = self.environment_decoder(query, encoding, encoding, env_mask)
 
             # decode from ego trajectory inputs
+            # ego_traj_encoding [B, N * T//10, 256]
             ego_traj_encoding = torch.reshape(ego_traj_ori_encoding, (ego_traj_ori_encoding.shape[0], -1, ego_traj_ori_encoding.shape[-1]))
             ego_condition_decoding = self.ego_condition_decoder(query, ego_traj_encoding, ego_traj_encoding, ego_condition_mask)
 
             # trajectory outputs
             decoding = torch.cat([env_decoding, ego_condition_decoding], dim=-1)
+            # [B, N, T, 3]
             trajectory = self.agent_traj_decoder(decoding, current_states[:, i])
             agents_trajecotries.append(trajectory)
 
         # score outputs
+        # agents_trajecotries: list[B, N, T, 3] => [B, N, M, T, 3]
         agents_trajecotries = torch.stack(agents_trajecotries, dim=2)
+        # scores [B, N], weights [B, 8]
         scores, weights = self.scorer(ego_traj_inputs, encoding[:, 0], agents_trajecotries, current_states, timesteps)
 
         # ego regularization
         ego_traj_regularization = self.ego_traj_decoder(encoding[:, 0])
         ego_traj_regularization = torch.reshape(ego_traj_regularization, (ego_traj_regularization.shape[0], 80, 3))
-
+        """
+        agents_trajecotries: [B, N, M, T, 3]
+        scores: [B, N]
+        ego_traj_regularization: [B, 80, 3]
+        weights: [B, 8]
+        """
         return agents_trajecotries, scores, ego_traj_regularization, weights

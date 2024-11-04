@@ -205,7 +205,13 @@ class TreePlanner:
         new_paths = []
         path_distance = []
         for (path_len, dist, path_polyline) in routes:
-            if len(path_polyline) > 81:
+            if len(path_polyline) > 141:
+                sampled_index = np.array([5, 10, 15, 20, 25, 30, 35]) * 4
+            elif len(path_polyline) > 121:
+                sampled_index = np.array([5, 10, 15, 20, 25, 30]) * 4
+            elif len(path_polyline) > 101:
+                sampled_index = np.array([5, 10, 15, 20, 25]) * 4
+            elif len(path_polyline) > 81:
                 sampled_index = np.array([5, 10, 15, 20]) * 4
             elif len(path_polyline) > 61:
                 sampled_index = np.array([5, 10, 15]) * 4
