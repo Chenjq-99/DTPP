@@ -5,6 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "test_idm",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_idm.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train",
+                "--map_path", "~/nuplan/dataset/maps",
+                "--test_type", "open_loop_boxes"
+            ]
+        },
+        {
             "name": "data_process_idm",
             "type": "debugpy",
             "request": "launch",
@@ -12,9 +24,12 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
-                "--data_path", "~/nuplan/dataset/nuplan-v1.1/splits/train",
-                "--map_path", "~/nuplan/dataset/maps",
-                "--save_path", "~/nuplan/processed_data/train/debug",
+                "--data_path",
+                "~/nuplan/dataset/nuplan-v1.1/splits/train",
+                "--map_path",
+                "~/nuplan/dataset/maps",
+                "--save_path",
+                "~/nuplan/processed_data/train/debug",
             ]
         },
         {

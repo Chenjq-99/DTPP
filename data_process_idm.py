@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from data_utils import *
 from trajectory_tree_planner import *
-from common_utils import get_filter_parameters, get_scenario_map, get_filter_parameters_for_following_lane_with_lead
+from common_utils import get_filter_parameters, get_scenario_map, get_filter_parameters_for_near_multiple_vehicles
 
 from nuplan.planning.utils.multithreading.worker_pool import Task
 from nuplan.planning.utils.multithreading.worker_parallel import SingleMachineParallelExecutor
@@ -307,13 +307,13 @@ class DataProcessor(object):
             idm params optimization
             """
 
-            bayesian_optimizer: BayesianOptimizer = \
-                BayesianOptimizer(scenario, planned_trajectory_samples=4)
-            idm_params, error = bayesian_optimizer.optimize()
-            print(f"IDM params: {idm_params.x}, error: {error}")
+            # bayesian_optimizer: BayesianOptimizer = \
+            #     BayesianOptimizer(scenario, planned_trajectory_samples=4)
+            # idm_params, error = bayesian_optimizer.optimize()
+            # print(f"IDM params: {idm_params.x}, error: {error}")
             
             # save to disk
-            # self.save_to_disk(save_dir, data)
+            self.save_to_disk(save_dir, data)
 
 
 if __name__ == "__main__":
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     map_version = "nuplan-maps-v1.0"
     scenario_mapping = ScenarioMapping(scenario_map=get_scenario_map(), subsample_ratio_override=1.0) # 0.5
     builder = NuPlanScenarioBuilder(args.data_path, args.map_path, None, None, map_version, scenario_mapping=scenario_mapping)
-    scenario_filter = ScenarioFilter(*get_filter_parameters_for_following_lane_with_lead(num_scenarios_per_type=30, 
+    scenario_filter = ScenarioFilter(*get_filter_parameters_for_near_multiple_vehicles(num_scenarios_per_type=30, 
                                                                                          limit_total_scenarios=args.total_scenarios))
     worker = SingleMachineParallelExecutor(use_process_pool=True)
     scenarios = builder.get_scenarios(scenario_filter, worker)

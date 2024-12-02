@@ -241,9 +241,11 @@ def get_filter_parameters_for_changing_lane(num_scenarios_per_type=None, limit_t
     return scenario_types, scenario_tokens, log_names, map_names, num_scenarios_per_type, limit_total_scenarios, timestamp_threshold_s, ego_displacement_minimum_m, \
               expand_scenarios, remove_invalid_goals, shuffle, ego_start_speed_threshold, ego_stop_speed_threshold, speed_noise_tolerance
 
-def get_filter_parameters_for_following_lane_with_lead(num_scenarios_per_type=None, limit_total_scenarios=None):
+def get_filter_parameters_for_following_lane_with_or_without_lead(num_scenarios_per_type=None, limit_total_scenarios=None):
     scenario_types = [
-        'near_multiple_vehicles',
+        'following_lane_with_lead',
+        'following_lane_with_slow_lead',
+        'following_lane_without_lead',
     ]
 
     scenario_tokens = None              # List of scenario tokens to include
@@ -322,7 +324,7 @@ def get_low_level_metrics():
         'ego_yaw_rate': EgoYawRateStatistics(name='ego_yaw_rate', category='Dynamics', max_abs_yaw_rate=0.95),
         'planner_expert_average_l2_error_within_bound': PlannerExpertAverageL2ErrorStatistics(name='planner_expert_average_l2_error_within_bound',
                                                                                               category='Planning', metric_score_unit='float',
-                                                                                              comparison_horizon=[3, 5, 8], comparison_frequency=1,
+                                                                                              comparison_horizon=[1, 2, 4], comparison_frequency=1, #for 4s horizon, 1s frequency
                                                                                               max_average_l2_error_threshold=8)
     }
 

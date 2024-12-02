@@ -752,28 +752,55 @@ def create_map_raster(lanes, crosswalks, route_lanes):
     for i in range(lanes.shape[0]):
         lane = lanes[i]
         if lane[0][0] != 0:
-            plt.plot(lane[:, 0], lane[:, 1], linestyle='--', color='black', linewidth=1) # plot centerline
-
-    for j in range(crosswalks.shape[0]):
-        crosswalk = crosswalks[j]
-        if crosswalk[0][0] != 0:
-            plt.plot(crosswalk[:, 0], crosswalk[:, 1], 'b', linewidth=4) # plot crosswalk
+            # plt.plot(lane[:, 0], lane[:, 1], linestyle='--', color='black', linewidth=1) # plot centerline
+            step = 5
+            for j in range(0, lane.shape[0] - step - 1, step):
+                plt.arrow(
+                    lane[j, 0], lane[j, 1], lane[j+step, 0] - lane[j, 0], lane[j+step, 1] - lane[j, 1],
+                    head_width=0.2, head_length=0.2, fc='black', ec='black', zorder=3
+                )
+    # for j in range(crosswalks.shape[0]):
+    #     crosswalk = crosswalks[j]
+    #     if crosswalk[0][0] != 0:
+    #         # plt.plot(crosswalk[:, 0], crosswalk[:, 1], 'b', linewidth=4) # plot crosswalk
+    #         step = 10
+    #         for k in range(0, crosswalk.shape[0] - step - 1, step):
+    #             plt.arrow(
+    #                 crosswalk[k, 0], crosswalk[k, 1], crosswalk[k+step, 0] - crosswalk[k, 0], crosswalk[k+step, 1] - crosswalk[k, 1],
+    #                 head_width=0.2, head_length=0.2, fc='blue', ec='blue', zorder=3
+    #             )
 
     for k in range(route_lanes.shape[0]):
         route_lane = route_lanes[k]
         if route_lane[0][0] != 0:
-            plt.plot(route_lane[:, 0], route_lane[:, 1], color='green', linewidth=1) # plot route_lanes
+            # plt.plot(route_lane[:, 0], route_lane[:, 1], color='green', linewidth=1) # plot route_lanes
+            step = 5
+            for l in range(0, route_lane.shape[0] - step - 1, step):
+                plt.arrow(
+                    route_lane[l, 0], route_lane[l, 1], route_lane[l+step, 0] - route_lane[l, 0], route_lane[l+step, 1] - route_lane[l, 1],
+                    head_width=0.2, head_length=0.2, fc='green', ec='green', zorder=3
+                )
 
 
 def draw_trajectory(ego_trajectory, agent_trajectories):
     # plot ego 
-    plt.plot(ego_trajectory[:, 0], ego_trajectory[:, 1], 'r', linewidth=3, zorder=3)
-
+    # plt.plot(ego_trajectory[:, 0], ego_trajectory[:, 1], 'r', linewidth=3, zorder=3)
+    step = 5
+    for i in range(0, ego_trajectory.shape[0] - step - 1, step):
+        plt.arrow(
+            ego_trajectory[i, 0], ego_trajectory[i, 1], ego_trajectory[i+step, 0] - ego_trajectory[i, 0], ego_trajectory[i+step, 1] - ego_trajectory[i, 1],
+            head_width=0.2, head_length=0.2, fc='red', ec='red', zorder=3
+        )
     # plot others
     for i in range(agent_trajectories.shape[0]):
         if agent_trajectories[i, -1, 0] != 0:
             trajectory = agent_trajectories[i]
-            plt.plot(trajectory[:, 0], trajectory[:, 1], 'm', linewidth=3, zorder=3)
+            # plt.plot(trajectory[:, 0], trajectory[:, 1], 'm', linewidth=3, zorder=3)
+            for j in range(0, trajectory.shape[0] - step - 1, step):
+                plt.arrow(
+                    trajectory[j, 0], trajectory[j, 1], trajectory[j+step, 0] - trajectory[j, 0], trajectory[j+step, 1] - trajectory[j, 1],
+                    head_width=0.2, head_length=0.2, fc='m', ec='m', zorder=3
+                )
 
 
 def draw_plans(trajectory_plans, stage=1):

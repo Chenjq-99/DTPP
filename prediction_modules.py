@@ -38,7 +38,9 @@ class AgentEncoder(nn.Module):
 class VectorMapEncoder(nn.Module):
     def __init__(self, map_dim, map_len):
         super(VectorMapEncoder, self).__init__()
-        self.point_net = nn.Sequential(nn.Linear(map_dim, 64), nn.ReLU(), nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 256))
+        # self.point_net = nn.Sequential(nn.Linear(map_dim, 64), nn.ReLU(), nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 256))
+        self.point_net = nn.Sequential(nn.Linear(map_dim, 32), nn.ReLU(), nn.Linear(32, 64))
+        self.conv = nn.Conv2d(64, 256, kernel_size=(1,1))
         self.position_encode = PositionalEncoding(max_len=map_len)
 
     def segment_map(self, map, map_encoding):
@@ -52,7 +54,9 @@ class VectorMapEncoder(nn.Module):
         return map_encoding, map_mask
 
     def forward(self, input):
-        output = self.position_encode(self.point_net(input))
+        output = self.point_net(input)
+        output = self.conv(output.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        output = self.position_encode(output)
         encoding, mask = self.segment_map(input, output)
 
         return encoding, mask
